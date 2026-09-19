@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.schemas.product import ProductCreate
+from app.routers import products
 
 app = FastAPI(title="Product Catalog API", version="1.0")
 
@@ -12,10 +12,8 @@ app.add_middleware(
     allow_headers=["*"],  # Allows all headers
 )
 
-@app.post("/products", status_code=201)
-def create_product(product: ProductCreate):
-    return {
-        "status": "success",
-        "message": "Product passed automated Pydantic validation successfully!",
-        "data": product
-    }
+app.include_router(products.router)
+
+@app.get("/")
+def root():
+    return {"message": "Welcome to the Fullstack Journey API!"}
