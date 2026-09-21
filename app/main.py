@@ -1,8 +1,13 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.routers import products
+from app.database import engine, Base
+from app.models import product
 
 app = FastAPI(title="Product Catalog API", version="1.0")
+
+# WHY: This commands SQLAlchemy to check for the SQLite file and create tables if they don't exist yet.
+product.Base.metadata.create_all(bind=engine)
 
 app.add_middleware(
     CORSMiddleware,
