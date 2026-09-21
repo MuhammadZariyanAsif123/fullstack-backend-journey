@@ -30,4 +30,4 @@ jobs:
         NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
         NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
       run: |
-        python backend/scripts/sync_milestones.py
+        python scripts/sync_milestones.py
