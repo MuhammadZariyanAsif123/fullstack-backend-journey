@@ -62,12 +62,15 @@ def generate_architectural_breakdown(commit_date, commit_log):
     {commit_log}
     """
     
-    response = client.models.generate_content(
+    # Initialize a clean chat session to prevent Automatic Function Calling issues
+    chat = client.chats.create(
         model='gemini-3.6-flash',
-        contents=prompt,
         config=types.GenerateContentConfig(temperature=0.2)
     )
+    
+    response = chat.send_message(prompt)
     return response.text
+
 
 def parse_ai_output(ai_text):
     """Parses the Gemini structured text into a clean Python dictionary."""
