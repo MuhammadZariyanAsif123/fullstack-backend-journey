@@ -90,6 +90,30 @@ def delete_product(product_id: int, db: Session = Depends(get_db)):
  db.delete(product)
  db.commit() 
  return {"status": 202 , "message":"Product Has Been Removed Successfully"}
- 
+
+
+@router.put("/{product_id}")
+def update_product(product_id: int, updated_product: ProductCreate, db: Session = Depends(get_db)):
+    # Step 1: Query the database to find the product
+    product_query = db.query(ProductModel).filter(ProductModel.id == product_id)
+    product = product_query.first()
+
+    # Step 2: Handle 404 if the product doesn't exist
+    if not product:
+        raise HTTPException(
+            status_code=404, 
+            detail=f"Product with id {product_id} not found"
+        )
+
+    # Step 3: Update the fields dynamically from the incoming request payload
+    # model_dump() unpacks the Pydantic schema into a dictionary
+    update_data = updated_product.model_dump()
+    for key, value in update_data.items():
+        setattr(product, key, value)
+
+    db.commit()
+    db.refresh(product) # Refreshes the instance with the updated database state
+    
+    return product
 
  
