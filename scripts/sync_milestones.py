@@ -3,6 +3,9 @@ import subprocess
 import requests
 from google import genai
 from google.genai import types
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # 1. Initialize Clients & Load Environment Variables
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
