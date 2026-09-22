@@ -1,8 +1,10 @@
 import os
 import subprocess
+import time
 from collections import defaultdict
 import requests
 from google import genai
+from google.genai import errors
 from google.genai import types
 from dotenv import load_dotenv
 
@@ -13,6 +15,8 @@ client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 NOTION_TOKEN = os.getenv("NOTION_TOKEN")
 DATABASE_ID = os.getenv("NOTION_DATABASE_ID")
 NOTION_VERSION = "2022-06-28"
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
+GEMINI_FALLBACK_MODEL = os.getenv("GEMINI_FALLBACK_MODEL", "gemini-2.5-flash")
 
 def get_push_commits():
     """Extracts commits included in the current GitHub push, grouped by date."""
@@ -62,16 +66,33 @@ def generate_architectural_breakdown(commit_date, commit_log):
     {commit_log}
     """
     
-    # Using the correct model directly with tools disabled to bypass AFC issues
-    response = client.models.generate_content(
-        model='gemini-3.6-flash',
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            temperature=0.2,
-            tools=[],  # Explicitly disable tools to prevent automatic function calling exceptions
-        )
-    )
-    return response.text
+    models_to_try = [GEMINI_MODEL]
+    if GEMINI_FALLBACK_MODEL != GEMINI_MODEL:
+        models_to_try.append(GEMINI_FALLBACK_MODEL)
+
+    last_error = None
+    for model in models_to_try:
+        for attempt in range(3):
+            try:
+                response = client.models.generate_content(
+                    model=model,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        temperature=0.2,
+                        tools=[],
+                    )
+                )
+                return response.text
+            except errors.APIError as error:
+                last_error = error
+                if error.code not in (429, 500, 502, 503, 504):
+                    break
+                if attempt < 2:
+                    time.sleep(2 ** attempt)
+
+    raise RuntimeError(
+        f"Gemini generation failed for all configured models: {last_error}"
+    ) from last_error
 
 
 
