@@ -3,20 +3,20 @@ import subprocess
 import time
 from collections import defaultdict
 import requests
-from google import genai
-from google.genai import errors
-from google.genai import types
 from dotenv import load_dotenv
 
 load_dotenv()
 
 # 1. Initialize Clients & Load Environment Variables
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 NOTION_TOKEN = os.getenv("NOTION_TOKEN")
 DATABASE_ID = os.getenv("NOTION_DATABASE_ID")
 NOTION_VERSION = "2022-06-28"
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
-GEMINI_FALLBACK_MODEL = os.getenv("GEMINI_FALLBACK_MODEL", GEMINI_MODEL)
+DOCS_API_KEY = os.getenv("DOCS_API_KEY", os.getenv("GITHUB_TOKEN"))
+DOCS_API_URL = os.getenv(
+    "DOCS_API_URL",
+    "https://models.github.ai/inference/chat/completions"
+)
+DOCS_MODEL = os.getenv("DOCS_MODEL", "openai/gpt-4o-mini")
 
 def get_push_commits():
     """Extracts commits included in the current GitHub push, grouped by date."""
@@ -66,32 +66,36 @@ def generate_architectural_breakdown(commit_date, commit_log):
     {commit_log}
     """
     
-    models_to_try = [GEMINI_MODEL]
-    if GEMINI_FALLBACK_MODEL != GEMINI_MODEL:
-        models_to_try.append(GEMINI_FALLBACK_MODEL)
-
     last_error = None
-    for model in models_to_try:
-        for attempt in range(5):
-            try:
-                chat = client.chats.create(
-                    model=model,
-                    config=types.GenerateContentConfig(
-                        temperature=0.2,
-                        tools=[],
-                    )
-                )
-                response = chat.send_message(prompt)
-                return response.text
-            except errors.APIError as error:
-                last_error = error
-                if error.code not in (429, 500, 502, 503, 504):
+    for attempt in range(5):
+        try:
+            response = requests.post(
+                DOCS_API_URL,
+                headers={
+                    "Authorization": f"Bearer {DOCS_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": DOCS_MODEL,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0.2,
+                },
+                timeout=60,
+            )
+            if response.status_code in (429, 500, 502, 503, 504):
+                response.raise_for_status()
+            response.raise_for_status()
+            return response.json()["choices"][0]["message"]["content"]
+        except (requests.RequestException, KeyError, IndexError, TypeError) as error:
+            last_error = error
+            if isinstance(error, requests.HTTPError) and error.response is not None:
+                if error.response.status_code not in (429, 500, 502, 503, 504):
                     break
-                if attempt < 4:
-                    time.sleep(min(2 ** attempt, 16))
+            if attempt < 4:
+                time.sleep(min(2 ** attempt, 16))
 
     raise RuntimeError(
-        f"Gemini generation failed for all configured models: {last_error}"
+        f"Documentation generation failed for all retries: {last_error}"
     ) from last_error
 
 
@@ -194,8 +198,8 @@ def push_to_notion(parsed_data, commit_date):
     print(f"{action} Notion milestone for {commit_date}: {parsed_data.get('title')}")
 
 if __name__ == "__main__":
-    if not NOTION_TOKEN or not DATABASE_ID or not os.getenv("GEMINI_API_KEY"):
-        raise RuntimeError("GEMINI_API_KEY, NOTION_TOKEN, and NOTION_DATABASE_ID are required")
+    if not NOTION_TOKEN or not DATABASE_ID or not DOCS_API_KEY:
+        raise RuntimeError("DOCS_API_KEY, NOTION_TOKEN, and NOTION_DATABASE_ID are required")
 
     print("Reading commits included in the GitHub push...")
     commits_by_date = get_push_commits()
