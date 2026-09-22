@@ -14,7 +14,6 @@ name: Sync milestones to Notion
 
 permissions:
   contents: read
-  models: read
 
 jobs:
   sync-milestones:
@@ -35,9 +34,9 @@ jobs:
 
       - name: Generate daily milestones
         env:
-          DOCS_API_KEY: ${{ github.token }}
-          DOCS_API_URL: https://models.github.ai/inference/chat/completions
-          DOCS_MODEL: openai/gpt-4o-mini
+          DOCS_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          DOCS_API_URL: https://api.openai.com/v1/chat/completions
+          DOCS_MODEL: gpt-4o-mini
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
           GITHUB_EVENT_BEFORE: ${{ github.event.before }}

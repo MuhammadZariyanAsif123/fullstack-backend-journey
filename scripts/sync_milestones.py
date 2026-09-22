@@ -14,9 +14,9 @@ NOTION_VERSION = "2022-06-28"
 DOCS_API_KEY = os.getenv("DOCS_API_KEY", os.getenv("GITHUB_TOKEN"))
 DOCS_API_URL = os.getenv(
     "DOCS_API_URL",
-    "https://models.github.ai/inference/chat/completions"
+    "https://api.openai.com/v1/chat/completions"
 )
-DOCS_MODEL = os.getenv("DOCS_MODEL", "openai/gpt-4o-mini")
+DOCS_MODEL = os.getenv("DOCS_MODEL", "gpt-4o-mini")
 
 def get_push_commits():
     """Extracts commits included in the current GitHub push, grouped by date."""
