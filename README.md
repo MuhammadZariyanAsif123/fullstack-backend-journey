@@ -19,14 +19,20 @@ commit summary to Ollama, then syncs the generated document to the Notion databa
 	ollama pull llama3.2
 	```
 
-3. Ensure `.env` contains:
+3. Install Python dependencies:
+
+	```bash
+	python -m pip install -r app/requirements.txt
+	```
+
+4. Ensure `.env` contains:
 
 	```text
 	NOTION_TOKEN=your_notion_integration_token
 	NOTION_DATABASE_ID=your_notion_database_id
 	```
 
-4. Install the hook:
+5. Install the hook:
 
 	```bash
 	python scripts/install_post_commit_hook.py
