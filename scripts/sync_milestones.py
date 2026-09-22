@@ -62,14 +62,17 @@ def generate_architectural_breakdown(commit_date, commit_log):
     {commit_log}
     """
     
-    # Initialize a clean chat session to prevent Automatic Function Calling issues
-    chat = client.chats.create(
-        model='gemini-2.5-flash',
-        config=types.GenerateContentConfig(temperature=0.2)
+    # Using the correct model directly with tools disabled to bypass AFC issues
+    response = client.models.generate_content(
+        model='gemini-3.6-flash',
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            temperature=0.2,
+            tools=[],  # Explicitly disable tools to prevent automatic function calling exceptions
+        )
     )
-    
-    response = chat.send_message(prompt)
     return response.text
+
 
 
 def parse_ai_output(ai_text):
