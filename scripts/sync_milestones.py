@@ -11,15 +11,11 @@ load_dotenv()
 NOTION_TOKEN = os.getenv("NOTION_TOKEN")
 DATABASE_ID = os.getenv("NOTION_DATABASE_ID")
 NOTION_VERSION = "2022-06-28"
-DOCS_API_KEY = os.getenv("DOCS_API_KEY", os.getenv("GITHUB_TOKEN"))
-DOCS_API_URL = os.getenv(
-    "DOCS_API_URL",
-    "https://api.openai.com/v1/chat/completions"
-)
-DOCS_MODEL = os.getenv("DOCS_MODEL", "gpt-4o-mini")
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/chat")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2")
 
-def get_push_commits():
-    """Extracts commits included in the current GitHub push, grouped by date."""
+def get_commits_to_document():
+    """Extracts the current commit or a requested history range, grouped by date."""
     before = os.getenv("GITHUB_EVENT_BEFORE")
     after = os.getenv("GITHUB_EVENT_AFTER", "HEAD")
     sync_all_history = os.getenv("SYNC_ALL_HISTORY") == "true"
@@ -30,7 +26,7 @@ def get_push_commits():
     elif before and before != "0" * 40:
         command.append(f"{before}..{after}")
     else:
-        command.append(after)
+        command.extend(["-1", after])
 
     result = subprocess.run(
         command,
@@ -47,7 +43,7 @@ def get_push_commits():
     return commits_by_date
 
 def generate_architectural_breakdown(commit_date, commit_log):
-    """Passes code history to Gemini to extract structured How and Why context."""
+    """Passes the commit history to Ollama to extract structured documentation."""
     prompt = f"""
     You are an expert backend systems architect and tech writer. Analyze these code commits 
     and generate a detailed engineering milestone document.
@@ -70,31 +66,18 @@ def generate_architectural_breakdown(commit_date, commit_log):
     for attempt in range(5):
         try:
             response = requests.post(
-                DOCS_API_URL,
-                headers={
-                    "Authorization": f"Bearer {DOCS_API_KEY}",
-                    "Content-Type": "application/json",
-                    "Accept": "application/json",
-                },
+                OLLAMA_URL,
                 json={
-                    "model": DOCS_MODEL,
+                    "model": OLLAMA_MODEL,
                     "messages": [{"role": "user", "content": prompt}],
-                    "temperature": 0.2,
+                    "stream": False,
+                    "options": {"temperature": 0.2},
                 },
                 timeout=60,
             )
-            if response.status_code in (429, 500, 502, 503, 504):
-                response.raise_for_status()
             response.raise_for_status()
-            try:
-                response_data = response.json()
-            except requests.exceptions.JSONDecodeError as error:
-                body = response.text.strip().replace("\n", " ")[:500]
-                raise RuntimeError(
-                    f"Documentation API returned non-JSON response "
-                    f"(HTTP {response.status_code}): {body or '<empty body>'}"
-                ) from error
-            return response_data["choices"][0]["message"]["content"]
+            response_data = response.json()
+            return response_data["message"]["content"]
         except (requests.RequestException, KeyError, IndexError, TypeError) as error:
             last_error = error
             if isinstance(error, requests.HTTPError) and error.response is not None:
@@ -104,13 +87,13 @@ def generate_architectural_breakdown(commit_date, commit_log):
                 time.sleep(min(2 ** attempt, 16))
 
     raise RuntimeError(
-        f"Documentation generation failed for all retries: {last_error}"
+        f"Ollama documentation generation failed for all retries: {last_error}"
     ) from last_error
 
 
 
 def parse_ai_output(ai_text):
-    """Parses the Gemini structured text into a clean Python dictionary."""
+    """Parses the Ollama structured text into a clean Python dictionary."""
     data = {}
     current_key = None
     for line in ai_text.split("\n"):
@@ -207,11 +190,11 @@ def push_to_notion(parsed_data, commit_date):
     print(f"{action} Notion milestone for {commit_date}: {parsed_data.get('title')}")
 
 if __name__ == "__main__":
-    if not NOTION_TOKEN or not DATABASE_ID or not DOCS_API_KEY:
-        raise RuntimeError("DOCS_API_KEY, NOTION_TOKEN, and NOTION_DATABASE_ID are required")
+    if not NOTION_TOKEN or not DATABASE_ID:
+        raise RuntimeError("NOTION_TOKEN and NOTION_DATABASE_ID are required")
 
-    print("Reading commits included in the GitHub push...")
-    commits_by_date = get_push_commits()
+    print("Reading commits to document...")
+    commits_by_date = get_commits_to_document()
     for commit_date, commits in sorted(commits_by_date.items()):
         print(f"Generating architectural breakdown for {commit_date}...")
         raw_ai_text = generate_architectural_breakdown(commit_date, "\n".join(commits))
