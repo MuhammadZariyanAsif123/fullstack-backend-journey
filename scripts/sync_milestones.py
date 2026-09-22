@@ -64,7 +64,7 @@ def generate_architectural_breakdown(commit_date, commit_log):
     
     # Initialize a clean chat session to prevent Automatic Function Calling issues
     chat = client.chats.create(
-        model='gemini-3.6-flash',
+        model='gemini-2.5-flash',
         config=types.GenerateContentConfig(temperature=0.2)
     )
     
