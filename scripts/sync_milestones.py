@@ -16,7 +16,7 @@ NOTION_TOKEN = os.getenv("NOTION_TOKEN")
 DATABASE_ID = os.getenv("NOTION_DATABASE_ID")
 NOTION_VERSION = "2022-06-28"
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
-GEMINI_FALLBACK_MODEL = os.getenv("GEMINI_FALLBACK_MODEL", "gemini-2.5-flash")
+GEMINI_FALLBACK_MODEL = os.getenv("GEMINI_FALLBACK_MODEL", GEMINI_MODEL)
 
 def get_push_commits():
     """Extracts commits included in the current GitHub push, grouped by date."""
@@ -72,23 +72,23 @@ def generate_architectural_breakdown(commit_date, commit_log):
 
     last_error = None
     for model in models_to_try:
-        for attempt in range(3):
+        for attempt in range(5):
             try:
-                response = client.models.generate_content(
+                chat = client.chats.create(
                     model=model,
-                    contents=prompt,
                     config=types.GenerateContentConfig(
                         temperature=0.2,
                         tools=[],
                     )
                 )
+                response = chat.send_message(prompt)
                 return response.text
             except errors.APIError as error:
                 last_error = error
                 if error.code not in (429, 500, 502, 503, 504):
                     break
-                if attempt < 2:
-                    time.sleep(2 ** attempt)
+                if attempt < 4:
+                    time.sleep(min(2 ** attempt, 16))
 
     raise RuntimeError(
         f"Gemini generation failed for all configured models: {last_error}"
