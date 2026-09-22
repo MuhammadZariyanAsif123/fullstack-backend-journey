@@ -74,6 +74,7 @@ def generate_architectural_breakdown(commit_date, commit_log):
                 headers={
                     "Authorization": f"Bearer {DOCS_API_KEY}",
                     "Content-Type": "application/json",
+                    "Accept": "application/json",
                 },
                 json={
                     "model": DOCS_MODEL,
@@ -85,7 +86,15 @@ def generate_architectural_breakdown(commit_date, commit_log):
             if response.status_code in (429, 500, 502, 503, 504):
                 response.raise_for_status()
             response.raise_for_status()
-            return response.json()["choices"][0]["message"]["content"]
+            try:
+                response_data = response.json()
+            except requests.exceptions.JSONDecodeError as error:
+                body = response.text.strip().replace("\n", " ")[:500]
+                raise RuntimeError(
+                    f"Documentation API returned non-JSON response "
+                    f"(HTTP {response.status_code}): {body or '<empty body>'}"
+                ) from error
+            return response_data["choices"][0]["message"]["content"]
         except (requests.RequestException, KeyError, IndexError, TypeError) as error:
             last_error = error
             if isinstance(error, requests.HTTPError) and error.response is not None:
