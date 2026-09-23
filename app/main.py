@@ -1,8 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import products
+from app.routers import products,users
 from app.database import engine, Base
 from app.models import product
+
 
 app = FastAPI(title="Product Catalog API", version="1.0")
 
@@ -18,6 +19,7 @@ app.add_middleware(
 )
 
 app.include_router(products.router)
+app.include_router(users.router)
 
 @app.get("/")
 def root():
