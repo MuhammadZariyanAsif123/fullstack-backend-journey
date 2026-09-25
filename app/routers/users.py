@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.users import User
-from app.schemas.user import UserCreate, UserResponse
-from app.utils.security import hash_password
+from app.schemas.user import UserCreate, UserResponse , UserLogin
+from app.utils.security import hash_password , verify_password,create_access_token
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -34,3 +34,27 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)):
 
     # 5. Return the response (Pydantic automatically strips the password hash out)
     return new_user
+
+
+@router.post("/login", status_code=status.HTTP_200_OK)
+def login_user(user: UserLogin, db: Session = Depends(get_db)):
+    # 1. Query the database for the user by email
+    user_record = db.query(User).filter(User.email == user.email).first()
+    
+    # 2. Verify user exists AND password matches (combined to prevent user enumeration)
+    if not user_record or not verify_password(user.password, user_record.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # 3. Generate the JWT access token using the user's email as the subject ('sub')
+    access_token = create_access_token(data={"sub": user_record.email})
+    
+    # 4. Return the token to the client
+    return {
+        "access_token": access_token, 
+        "token_type": "bearer"
+    }    
+   

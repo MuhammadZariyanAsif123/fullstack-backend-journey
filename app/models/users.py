@@ -13,3 +13,5 @@ class User(Base):
     
     # 2. Timestamp: automatically stamps the current server time upon creation
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    
