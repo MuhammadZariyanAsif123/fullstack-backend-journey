@@ -3,8 +3,27 @@ from jose import jwt
 from datetime import datetime, timedelta
 import os
 from dotenv import load_dotenv
+from fastapi.security import OAuth2PasswordBearer
+from jose import jwt, JWTError
 
 load_dotenv()
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="users/login")
+
+def decode_access_token(token: str) -> dict | None:
+    """
+    Decodes the JWT using the secret key and algorithm.
+    Returns the payload dictionary if valid, or None if invalid/expired.
+    """
+    try:
+        payload = jwt.decode(
+            token, 
+            os.getenv("SECRET_KEY"), 
+            algorithms=[os.getenv("ALGORITHM")]
+        )
+        return payload
+    except JWTError:
+        return None
 
 def hash_password(password: str) -> str:
     password_bytes = password.encode('utf-8')
@@ -43,4 +62,5 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
     
     # Encode into a signed JWT string
     encoded_jwt = jwt.encode(token_payload, os.getenv("SECRET_KEY"), algorithm=os.getenv("ALGORITHM"))
+    
     return encoded_jwt

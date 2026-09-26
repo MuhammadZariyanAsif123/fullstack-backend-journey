@@ -3,9 +3,33 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.users import User
 from app.schemas.user import UserCreate, UserResponse , UserLogin
-from app.utils.security import hash_password , verify_password,create_access_token
+from app.utils.security import hash_password , verify_password,create_access_token , decode_access_token ,oauth2_scheme
 
 router = APIRouter(prefix="/users", tags=["Users"])
+
+
+def authenticate(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    
+    # 1. Use our pure utility function to decode the token
+    payload = decode_access_token(token)
+    if payload is None:
+        raise credentials_exception
+        
+    user_email: str = payload.get("sub")
+    if user_email is None:
+        raise credentials_exception
+
+    # 2. Database lookup happens here safely
+    user = db.query(User).filter(User.email == user_email).first()
+    if user is None:
+        raise credentials_exception
+
+    return user
 
 @router.post("/", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def register_user(user: UserCreate, db: Session = Depends(get_db)):
@@ -57,4 +81,11 @@ def login_user(user: UserLogin, db: Session = Depends(get_db)):
         "access_token": access_token, 
         "token_type": "bearer"
     }    
-   
+
+
+# This is a protected route due to "authenticate dependency "
+@router.get('/fetch',response_model=list[UserResponse],status_code=status.HTTP_200_OK)
+def getAllUsers(db: Session=Depends(get_db), current_user : User = Depends(authenticate)):
+    users = db.query(User).all()    
+    return users
+
